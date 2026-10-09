@@ -300,10 +300,25 @@ export function ReportWizard({ userId: _userId }: { userId: string }) {
         setSubmittedTracking(res.trackingNumber);
         setSubmittedComplaintId(res.complaintId);
         localStorage.removeItem('fmc_draft_text');
-        toast.success(`Complaint successfully submitted: ${res.trackingNumber}`);
+        toast.success('Your complaint has been submitted successfully.');
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Submission failed';
-        toast.error(msg);
+        console.error('[Complaint Submission Error]:', err);
+        let displayMsg = 'Unable to submit your complaint right now. Please try again.';
+        if (err instanceof Error) {
+          const raw = err.message || '';
+          if (raw.includes('valid complaint category')) {
+            displayMsg = 'Please select a valid complaint category.';
+          } else if (raw.includes('responsible department is currently unavailable')) {
+            displayMsg = 'The responsible department is currently unavailable. Please try again later.';
+          } else if (raw.includes('already been submitted')) {
+            displayMsg = 'Complaint has already been submitted.';
+          } else if (raw.includes('Unauthorized')) {
+            displayMsg = 'You must be logged in to submit a complaint.';
+          } else {
+            displayMsg = 'Unable to submit your complaint right now. Please try again.';
+          }
+        }
+        toast.error(displayMsg);
       }
     });
   };

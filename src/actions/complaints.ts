@@ -29,69 +29,96 @@ export async function saveDraftComplaint(formData: z.infer<typeof draftSchema>) 
     throw new Error('Unauthorized');
   }
 
-  const parsed = draftSchema.parse(formData);
+  let parsed: z.infer<typeof draftSchema>;
+  try {
+    parsed = draftSchema.parse(formData);
+  } catch (err) {
+    if (err instanceof z.ZodError && err.issues.some((i) => i.path.includes('category'))) {
+      throw new Error('Please select a valid complaint category.');
+    }
+    throw new Error('Unable to submit your complaint right now. Please try again.');
+  }
+
   const departmentCode = getDepartmentForCategory(parsed.category);
-  const department = await prisma.department.findUnique({
-    where: { code: departmentCode },
-  });
+  let department;
+  try {
+    department = await prisma.department.findUnique({
+      where: { code: departmentCode },
+    });
+  } catch (dbErr) {
+    console.error('[SaveDraft Database Error]:', dbErr);
+    throw new Error('Unable to submit your complaint right now. Please try again.');
+  }
+
+  if (!department || !department.isActive) {
+    throw new Error('The responsible department is currently unavailable. Please try again later.');
+  }
 
   const now = new Date();
   const year = now.getFullYear();
 
-  if (parsed.draftId) {
-    // Verify owner
-    const existing = await prisma.complaint.findUnique({
-      where: { id: parsed.draftId },
-    });
+  try {
+    if (parsed.draftId) {
+      // Verify owner
+      const existing = await prisma.complaint.findUnique({
+        where: { id: parsed.draftId },
+      });
 
-    if (!existing || existing.citizenId !== user.id || existing.status !== 'DRAFT') {
-      throw new Error('Draft not found or invalid');
+      if (!existing || existing.citizenId !== user.id || existing.status !== 'DRAFT') {
+        throw new Error('Draft not found or invalid');
+      }
+
+      const updated = await prisma.complaint.update({
+        where: { id: parsed.draftId },
+        data: {
+          title: parsed.title,
+          description: parsed.description,
+          category: parsed.category,
+          latitude: parsed.latitude,
+          longitude: parsed.longitude,
+          address: parsed.address,
+          publicAreaLabel: parsed.publicAreaLabel || null,
+          isPublic: parsed.isPublic,
+          additionalNotes: parsed.additionalNotes || null,
+          departmentId: department.id,
+        },
+        include: { photos: true },
+      });
+
+      return { success: true, complaint: updated };
     }
 
-    const updated = await prisma.complaint.update({
-      where: { id: parsed.draftId },
+    // Create new draft
+    const draftTracking = `DRAFT-${crypto.randomUUID().slice(0, 8)}`;
+    const created = await prisma.complaint.create({
       data: {
+        trackingNumber: draftTracking,
+        trackingYear: year,
+        citizenId: user.id,
         title: parsed.title,
         description: parsed.description,
         category: parsed.category,
+        priority: Priority.MEDIUM,
         latitude: parsed.latitude,
         longitude: parsed.longitude,
         address: parsed.address,
         publicAreaLabel: parsed.publicAreaLabel || null,
         isPublic: parsed.isPublic,
         additionalNotes: parsed.additionalNotes || null,
-        departmentId: department?.id || null,
+        status: 'DRAFT',
+        departmentId: department.id,
       },
       include: { photos: true },
     });
 
-    return { success: true, complaint: updated };
+    return { success: true, complaint: created };
+  } catch (err) {
+    if (err instanceof Error && err.message === 'Draft not found or invalid') {
+      throw err;
+    }
+    console.error('[SaveDraft Persistence Error]:', err);
+    throw new Error('Unable to submit your complaint right now. Please try again.');
   }
-
-  // Create new draft
-  const draftTracking = `DRAFT-${crypto.randomUUID().slice(0, 8)}`;
-  const created = await prisma.complaint.create({
-    data: {
-      trackingNumber: draftTracking,
-      trackingYear: year,
-      citizenId: user.id,
-      title: parsed.title,
-      description: parsed.description,
-      category: parsed.category,
-      priority: Priority.MEDIUM,
-      latitude: parsed.latitude,
-      longitude: parsed.longitude,
-      address: parsed.address,
-      publicAreaLabel: parsed.publicAreaLabel || null,
-      isPublic: parsed.isPublic,
-      additionalNotes: parsed.additionalNotes || null,
-      status: 'DRAFT',
-      departmentId: department?.id || null,
-    },
-    include: { photos: true },
-  });
-
-  return { success: true, complaint: created };
 }
 
 export async function submitFinalComplaint(complaintId: string) {
@@ -100,11 +127,17 @@ export async function submitFinalComplaint(complaintId: string) {
     throw new Error('Unauthorized');
   }
 
-  // Verify complaint is in DRAFT
-  const complaint = await prisma.complaint.findUnique({
-    where: { id: complaintId },
-    include: { photos: true },
-  });
+  let complaint;
+  try {
+    // Verify complaint is in DRAFT
+    complaint = await prisma.complaint.findUnique({
+      where: { id: complaintId },
+      include: { photos: true },
+    });
+  } catch (dbErr) {
+    console.error('[SubmitFinalComplaint Lookup Error]:', dbErr);
+    throw new Error('Unable to submit your complaint right now. Please try again.');
+  }
 
   if (!complaint || complaint.citizenId !== user.id) {
     throw new Error('Complaint not found or unauthorized');
@@ -120,44 +153,70 @@ export async function submitFinalComplaint(complaintId: string) {
     description: complaint.description,
   });
 
-  const department = await prisma.department.findUnique({
-    where: { code: aiResult.departmentCode },
-  });
+  let department;
+  try {
+    department = await prisma.department.findUnique({
+      where: { code: aiResult.departmentCode },
+    });
+  } catch (dbErr) {
+    console.error('[SubmitFinalComplaint Department Lookup Error]:', dbErr);
+    throw new Error('Unable to submit your complaint right now. Please try again.');
+  }
 
-  // Execute transition DRAFT -> SUBMITTED
-  const result = await executeTransition({
-    complaintId: complaint.id,
-    toStatus: 'SUBMITTED',
-    actor: {
-      id: user.id,
-      role: user.role,
-      departmentId: user.departmentId,
-      isActive: user.isActive,
-    },
-    departmentId: department?.id || complaint.departmentId || undefined,
-  });
+  if (!department || !department.isActive) {
+    // Fallback to General department if suggested department is unavailable
+    try {
+      department = await prisma.department.findUnique({
+        where: { code: 'GENERAL' },
+      });
+    } catch {
+      // Continue to check
+    }
+  }
 
-  // Store AI advisory fields
-  await prisma.complaint.update({
-    where: { id: complaint.id },
-    data: {
-      aiCategory: aiResult.category,
-      aiPriority: aiResult.priority,
-      aiDepartmentCode: aiResult.departmentCode,
-      aiExplanation: aiResult.explanation,
-      aiSource: aiResult.source,
-    },
-  });
+  if (!department || !department.isActive) {
+    throw new Error('The responsible department is currently unavailable. Please try again later.');
+  }
 
-  revalidatePath('/dashboard');
-  revalidatePath('/dashboard/complaints');
-  revalidatePath(`/dashboard/complaints/${complaint.id}`);
+  try {
+    // Execute transition DRAFT -> SUBMITTED
+    const result = await executeTransition({
+      complaintId: complaint.id,
+      toStatus: 'SUBMITTED',
+      actor: {
+        id: user.id,
+        role: user.role,
+        departmentId: user.departmentId,
+        isActive: user.isActive,
+      },
+      departmentId: department.id,
+    });
 
-  return {
-    success: true,
-    trackingNumber: result.complaint.trackingNumber,
-    complaintId: result.complaint.id,
-  };
+    // Store AI advisory fields
+    await prisma.complaint.update({
+      where: { id: complaint.id },
+      data: {
+        aiCategory: aiResult.category,
+        aiPriority: aiResult.priority,
+        aiDepartmentCode: aiResult.departmentCode,
+        aiExplanation: aiResult.explanation,
+        aiSource: aiResult.source,
+      },
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/complaints');
+    revalidatePath(`/dashboard/complaints/${complaint.id}`);
+
+    return {
+      success: true,
+      trackingNumber: result.complaint.trackingNumber,
+      complaintId: result.complaint.id,
+    };
+  } catch (dbErr) {
+    console.error('[SubmitFinalComplaint Transition Error]:', dbErr);
+    throw new Error('Unable to submit your complaint right now. Please try again.');
+  }
 }
 
 export async function rateComplaintResolution(complaintId: string, rating: number, comment?: string) {

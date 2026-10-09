@@ -1,0 +1,437 @@
+// FixMyCity Complete Schema — Prisma ORM 7 compatible
+// Tables and columns mapped to snake_case; Prisma models in camelCase
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/* ----------------------------------------------------------------- */
+/* Enums                                                             */
+/* ----------------------------------------------------------------- */
+
+enum Role {
+  CITIZEN
+  ADMIN
+  WORKER
+}
+
+enum DepartmentCode {
+  ROADS
+  WATER
+  SANITATION
+  LIGHTING
+  DRAINAGE
+  GENERAL
+}
+
+enum ComplaintStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+  REOPENED
+}
+
+enum ComplaintCategory {
+  POTHOLES
+  ROAD_DAMAGE
+  TRAFFIC_INFRASTRUCTURE
+  WATER_LEAKAGE
+  GARBAGE_COLLECTION
+  PUBLIC_SANITATION
+  STREETLIGHT_FAILURE
+  DRAINAGE_PROBLEMS
+  PUBLIC_PROPERTY_DAMAGE
+  OTHER
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum PhotoKind {
+  EVIDENCE
+  RESOLUTION
+}
+
+enum EventType {
+  STATUS
+  ASSIGNMENT
+  NOTE
+  FEEDBACK
+}
+
+enum EventVisibility {
+  PUBLIC
+  INTERNAL
+}
+
+enum AiSource {
+  GEMINI
+  RULES
+}
+
+enum AiReview {
+  PENDING
+  ACCEPTED
+  OVERRIDDEN
+}
+
+enum BillService {
+  ELECTRICITY
+  WATER
+  PROPERTY_TAX
+  WASTE
+}
+
+enum BillStatus {
+  UNPAID
+  PAID
+}
+
+enum PaymentMethodCode {
+  DEMO_UPI
+  DEMO_CARD
+  DEMO_NET_BANKING
+  DEMO_WALLET
+  DEMO_CASH_COUNTER
+}
+
+enum PaymentStatus {
+  SUCCEEDED
+}
+
+enum AnnouncementCategory {
+  GENERAL
+  SERVICE_UPDATE
+  MAINTENANCE
+  EMERGENCY
+  EVENT
+  ADVISORY
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum UploadStatus {
+  ISSUED
+  PROCESSED
+  FAILED
+  EXPIRED
+}
+
+/* ----------------------------------------------------------------- */
+/* Models                                                            */
+/* ----------------------------------------------------------------- */
+
+model Profile {
+  id           String      @id @db.Uuid // Matches Supabase Auth user ID
+  email        String      @unique
+  fullName     String      @map("full_name")
+  phone        String?
+  role         Role        @default(CITIZEN)
+  departmentId String?     @map("department_id") @db.Uuid
+  isActive     Boolean     @default(true) @map("is_active")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  department          Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  complaints          Complaint[]     @relation("CitizenComplaints")
+  assignedComplaints  Complaint[]     @relation("AssignedWorkerComplaints")
+  bills               Bill[]
+  payments            Payment[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  announcements       Announcement[]  @relation("AuthorAnnouncements")
+
+  @@index([role, isActive])
+  @@index([departmentId])
+  @@map("profiles")
+}
+
+model Department {
+  id           String      @id @default(uuid()) @db.Uuid
+  code         String      @unique @db.VarChar(50)
+  name         String
+  description  String
+  contactEmail String?     @map("contact_email")
+  isActive     Boolean     @default(true) @map("is_active")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  profiles    Profile[]
+  complaints  Complaint[]
+
+  @@map("departments")
+}
+
+model Complaint {
+  id               String            @id @default(uuid()) @db.Uuid
+  trackingSeq      Int               @default(autoincrement()) @map("tracking_seq")
+  trackingNumber   String            @unique @map("tracking_number") // FMC-YYYY-NNNNNN
+  trackingYear     Int               @map("tracking_year")
+  citizenId        String            @map("citizen_id") @db.Uuid
+  title            String            @db.VarChar(120)
+  description      String            @db.VarChar(2000)
+  category         ComplaintCategory
+  priority         Priority          @default(MEDIUM)
+  latitude         Decimal           @db.Decimal(10, 7)
+  longitude        Decimal           @db.Decimal(10, 7)
+  address          String            @db.VarChar(200)
+  publicAreaLabel  String?           @map("public_area_label") @db.VarChar(100)
+  isPublic         Boolean           @default(false) @map("is_public")
+  additionalNotes  String?           @map("additional_notes") @db.VarChar(1000)
+  status           ComplaintStatus   @default(DRAFT)
+  departmentId     String?           @map("department_id") @db.Uuid
+  assignedWorkerId String?           @map("assigned_worker_id") @db.Uuid
+
+  // AI advisory fields
+  aiCategory       ComplaintCategory? @map("ai_category")
+  aiPriority       Priority?          @map("ai_priority")
+  aiDepartmentCode DepartmentCode?    @map("ai_department_code")
+  aiExplanation    String?            @map("ai_explanation") @db.VarChar(500)
+  aiSource         AiSource?          @map("ai_source")
+  aiReview         AiReview           @default(PENDING) @map("ai_review")
+
+  resolutionSummary String?          @map("resolution_summary") @db.VarChar(1000)
+  resolvedAt        DateTime?         @map("resolved_at")
+  resolutionVersion Int               @default(0) @map("resolution_version")
+  isDemo            Boolean           @default(false) @map("is_demo")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  citizen        Profile          @relation("CitizenComplaints", fields: [citizenId], references: [id], onDelete: Restrict)
+  department     Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  assignedWorker Profile?         @relation("AssignedWorkerComplaints", fields: [assignedWorkerId], references: [id], onDelete: SetNull)
+  photos         ComplaintPhoto[]
+  events         ComplaintEvent[]
+  uploadIntents  UploadIntent[]
+
+  @@index([citizenId, status, createdAt])
+  @@index([departmentId, status, priority])
+  @@index([assignedWorkerId, status])
+  @@index([status, createdAt])
+  @@index([isPublic, status])
+  @@index([trackingNumber])
+  @@map("complaints")
+}
+
+model ComplaintPhoto {
+  id                String         @id @default(uuid()) @db.Uuid
+  complaintId       String         @map("complaint_id") @db.Uuid
+  uploaderId        String         @map("uploader_id") @db.Uuid
+  kind              PhotoKind
+  storagePath       String         @unique @map("storage_path")
+  mimeType          String         @default("image/webp") @map("mime_type")
+  sizeBytes         Int            @map("size_bytes")
+  width             Int?
+  height            Int?
+  resolutionVersion Int            @default(0) @map("resolution_version")
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId, kind])
+  @@map("complaint_photos")
+}
+
+model ComplaintEvent {
+  id                String          @id @default(uuid()) @db.Uuid
+  complaintId       String          @map("complaint_id") @db.Uuid
+  citizenId         String          @map("citizen_id") @db.Uuid // Denormalized for safe Realtime RLS
+  actorId           String?         @map("actor_id") @db.Uuid
+  type              EventType
+  fromStatus        ComplaintStatus? @map("from_status")
+  toStatus          ComplaintStatus? @map("to_status")
+  departmentId      String?         @map("department_id") @db.Uuid
+  body              String?         @db.VarChar(1000)
+  visibility        EventVisibility @default(PUBLIC)
+  rating            Int?            // 1-5 only
+  resolutionVersion Int?            @map("resolution_version")
+  createdAt         DateTime        @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId, visibility, createdAt])
+  @@index([citizenId, visibility])
+  @@map("complaint_events")
+}
+
+model Bill {
+  id          String      @id @default(uuid()) @db.Uuid
+  citizenId   String      @map("citizen_id") @db.Uuid
+  service     BillService
+  periodLabel String      @map("period_label")
+  amount      Decimal     @db.Decimal(12, 2)
+  dueDate     DateTime    @map("due_date")
+  status      BillStatus  @default(UNPAID)
+  paidAt      DateTime?   @map("paid_at")
+  isDemo      Boolean     @default(true) @map("is_demo")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  citizen Profile  @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  payment Payment?
+
+  @@index([citizenId, status])
+  @@index([service, status])
+  @@map("bills")
+}
+
+model DemoPaymentMethod {
+  id          String            @id @default(uuid()) @db.Uuid
+  code        PaymentMethodCode @unique
+  displayName String            @map("display_name") @db.VarChar(60)
+  description String?           @db.VarChar(200)
+  iconName    String            @map("icon_name") @db.VarChar(40) // Phosphor icon identifier
+  isEnabled   Boolean           @default(true) @map("is_enabled")
+  sortOrder   Int               @default(0) @map("sort_order")
+  updatedById String?           @map("updated_by_id") @db.Uuid
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  services DemoPaymentMethodService[]
+  payments Payment[]
+
+  @@index([isEnabled, sortOrder])
+  @@map("demo_payment_methods")
+}
+
+model DemoPaymentMethodService {
+  id              String            @id @default(uuid()) @db.Uuid
+  paymentMethodId String            @map("payment_method_id") @db.Uuid
+  service         BillService
+  isDefault       Boolean           @default(false) @map("is_default")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  paymentMethod DemoPaymentMethod @relation(fields: [paymentMethodId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentMethodId, service])
+  @@index([service, isDefault])
+  @@map("demo_payment_method_services")
+}
+
+model DemoPaymentSettings {
+  id          String   @id @default("singleton")
+  isPaused    Boolean  @default(false) @map("is_paused")
+  noticeText  String   @default("DEMO ENVIRONMENT — All payment methods are simulated. No real currency is transferred.") @map("notice_text") @db.VarChar(300)
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("demo_payment_settings")
+}
+
+model Payment {
+  id                 String        @id @default(uuid()) @db.Uuid
+  billId             String        @unique @map("bill_id") @db.Uuid // 1:1 bill to payment
+  citizenId          String        @map("citizen_id") @db.Uuid
+  amount             Decimal       @db.Decimal(12, 2)
+  reference          String        @unique // DEMO-YYYYMMDD-XXXXXX
+  idempotencyKey     String        @unique @map("idempotency_key")
+  paymentMethodId    String        @map("payment_method_id") @db.Uuid
+  methodCodeSnapshot String        @map("method_code_snapshot") // Immutable snapshot
+  methodNameSnapshot String        @map("method_name_snapshot") // Immutable snapshot
+  status             PaymentStatus @default(SUCCEEDED)
+  isApproved         Boolean       @default(false) @map("is_approved")
+  approvedAt         DateTime?     @map("approved_at")
+  approvedById       String?       @map("approved_by_id") @db.Uuid
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  bill          Bill              @relation(fields: [billId], references: [id], onDelete: Restrict)
+  citizen       Profile           @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  paymentMethod DemoPaymentMethod @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict)
+
+  @@index([citizenId, createdAt])
+  @@map("payments")
+}
+
+model Announcement {
+  id          String               @id @default(uuid()) @db.Uuid
+  title       String               @db.VarChar(150)
+  summary     String?              @db.VarChar(300)
+  body        String               @db.VarChar(4000)
+  category    AnnouncementCategory @default(GENERAL)
+  status      AnnouncementStatus   @default(DRAFT)
+  pinned      Boolean              @default(false)
+  publishedAt DateTime?            @map("published_at")
+  expiresAt   DateTime?            @map("expires_at")
+  authorId    String               @map("author_id") @db.Uuid
+  isDemo      Boolean              @default(false) @map("is_demo")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  author Profile @relation("AuthorAnnouncements", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([status, publishedAt, expiresAt])
+  @@index([pinned, publishedAt])
+  @@map("announcements")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String   @db.VarChar(50) // e.g. COMPLAINT_UPDATE, BILL_DUE, ANNOUNCEMENT
+  title     String   @db.VarChar(150)
+  body      String   @db.VarChar(500)
+  link      String?  @db.VarChar(200)
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String   @db.VarChar(100)
+  entityType String   @map("entity_type") @db.VarChar(50)
+  entityId   String?  @map("entity_id") @db.VarChar(100)
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor Profile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model UploadIntent {
+  id           String       @id @default(uuid()) @db.Uuid
+  ownerId      String       @map("owner_id") @db.Uuid
+  complaintId  String       @map("complaint_id") @db.Uuid
+  kind         PhotoKind
+  stagingPath  String       @unique @map("staging_path")
+  uploadStatus UploadStatus @default(ISSUED) @map("upload_status")
+  issuedAt     DateTime     @default(now()) @map("issued_at")
+  expiresAt    DateTime     @map("expires_at")
+  processedAt  DateTime?    @map("processed_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, uploadStatus])
+  @@index([expiresAt, uploadStatus])
+  @@map("upload_intents")
+}

@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { Role } from '@/types/enums';
 
 export const ROLE_HOMES: Record<Role, string> = {
   CITIZEN: '/dashboard',

@@ -290,6 +290,7 @@ export default function LoginPage() {
         <div className="grid grid-cols-1 gap-2">
           <button
             type="button"
+            data-testid="demo-login-citizen"
             onClick={() => handleDemoLogin('CITIZEN')}
             disabled={isPending || !!demoRoleLoading}
             className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--background)] px-3.5 py-2.5 text-xs font-bold text-[var(--foreground)] hover:border-[var(--primary)] hover:bg-[var(--primary-light)]/20 transition-all text-left disabled:opacity-50"
@@ -310,6 +311,7 @@ export default function LoginPage() {
 
           <button
             type="button"
+            data-testid="demo-login-admin"
             onClick={() => handleDemoLogin('ADMIN')}
             disabled={isPending || !!demoRoleLoading}
             className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--background)] px-3.5 py-2.5 text-xs font-bold text-[var(--foreground)] hover:border-[#008C9A] hover:bg-[#008C9A]/10 transition-all text-left disabled:opacity-50"
@@ -330,6 +332,7 @@ export default function LoginPage() {
 
           <button
             type="button"
+            data-testid="demo-login-worker"
             onClick={() => handleDemoLogin('WORKER')}
             disabled={isPending || !!demoRoleLoading}
             className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--background)] px-3.5 py-2.5 text-xs font-bold text-[var(--foreground)] hover:border-[#A35F00] hover:bg-[#A35F00]/10 transition-all text-left disabled:opacity-50"

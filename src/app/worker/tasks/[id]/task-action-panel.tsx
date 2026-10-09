@@ -15,7 +15,7 @@ import {
   workerAddNote,
   workerResolveTask,
 } from '@/actions/worker-complaints';
-import { EventVisibility } from '@prisma/client';
+import { EventVisibility } from '@/types/enums';
 
 interface Props {
   complaintId: string;

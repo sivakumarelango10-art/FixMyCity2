@@ -1,5 +1,5 @@
 import React from 'react';
-import { Role } from '@prisma/client';
+import { Role } from '@/types/enums';
 import { Sparkle, SignOut } from '@phosphor-icons/react/dist/ssr';
 
 interface DemoBannerProps {

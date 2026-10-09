@@ -1,7 +1,6 @@
 import React from 'react';
 import { prisma } from '@/lib/db';
 import {
-  Megaphone,
   PushPin,
   Clock,
   Sparkle,

@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { adminAssignComplaint, adminReviewComplaint, adminRejectComplaint, adminAddNote } from '@/actions/admin-complaints';
-import { ComplaintCategory, Priority, EventVisibility, ComplaintStatus } from '@prisma/client';
+import { ComplaintCategory, Priority, EventVisibility, ComplaintStatus } from '@/types/enums';
 import { CATEGORY_OPTIONS } from '@/lib/domain/categories';
 import { X, NotePencil, ArrowRight, Buildings, User } from '@phosphor-icons/react';
 import { toast } from 'sonner';

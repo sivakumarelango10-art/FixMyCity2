@@ -6,7 +6,7 @@ import {
   adminTogglePaymentMethodEnabled,
   adminToggleGlobalPaymentPause,
 } from '@/actions/admin-payment-methods';
-import { BillService, PaymentMethodCode } from '@prisma/client';
+import { BillService, PaymentMethodCode } from '@/types/enums';
 import {
   CreditCard,
   QrCode,
@@ -182,9 +182,9 @@ export function PaymentMethodsManager({
             </span>
             <span className="text-xs text-[var(--text-muted)]">• No real currency or payment gateways</span>
           </div>
-          <h2 className="text-lg font-black text-[var(--foreground)] tracking-tight">
+          <h1 className="text-lg font-black text-[var(--foreground)] tracking-tight">
             Admin-Configurable Demo Payment Methods
-          </h2>
+          </h1>
           <p className="text-xs text-[var(--text-secondary)]">
             Configure the simulated payment options citizens see when paying Electricity, Water, Tax, or Waste bills.
           </p>

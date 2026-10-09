@@ -2,7 +2,6 @@ import React from 'react';
 import { requireRole } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import {
-  Megaphone,
   PushPin,
   Clock,
   Sparkle,

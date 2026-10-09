@@ -5,7 +5,8 @@
   "description": "FixMyCity — One City. One Platform. Every Service. Modern mobile-first civic services application.",
   "scripts": {
     "dev": "next dev --port 3000",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",

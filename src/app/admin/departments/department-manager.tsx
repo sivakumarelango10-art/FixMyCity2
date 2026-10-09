@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Plus,
   PencilSimple,
@@ -36,9 +37,8 @@ interface Props {
 }
 
 export function DepartmentManager({ initialDepartments }: Props) {
+  const router = useRouter();
   const [departments, setDepartments] = useState<DepartmentData[]>(initialDepartments);
-  void departments; // suppress unused state variable warning if updated via router
-  void setDepartments;
   const [search, setSearch] = useState('');
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -92,6 +92,10 @@ export function DepartmentManager({ initialDepartments }: Props) {
     setDeleteDept(dept);
   };
 
+  useEffect(() => {
+    setDepartments(initialDepartments);
+  }, [initialDepartments]);
+
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
@@ -110,8 +114,13 @@ export function DepartmentManager({ initialDepartments }: Props) {
       } else {
         setSuccessMsg(`Department "${formData.name}" added successfully!`);
         setShowAddModal(false);
-        // Refresh page state
-        window.location.reload();
+        if (res.department) {
+          setDepartments((prev) => [
+            ...prev,
+            { ...res.department!, _count: { profiles: 0, complaints: 0 } },
+          ]);
+        }
+        router.refresh();
       }
     });
   };
@@ -136,7 +145,12 @@ export function DepartmentManager({ initialDepartments }: Props) {
       } else {
         setSuccessMsg(`Department "${formData.name}" updated successfully!`);
         setEditDept(null);
-        window.location.reload();
+        if (res.department) {
+          setDepartments((prev) =>
+            prev.map((d) => (d.id === res.department!.id ? { ...d, ...res.department } : d))
+          );
+        }
+        router.refresh();
       }
     });
   };
@@ -151,8 +165,9 @@ export function DepartmentManager({ initialDepartments }: Props) {
         setErrorMsg(res.error || 'Failed to delete department');
       } else {
         setSuccessMsg(`Department "${deleteDept.name}" deleted successfully!`);
+        setDepartments((prev) => prev.filter((d) => d.id !== deleteDept.id));
         setDeleteDept(null);
-        window.location.reload();
+        router.refresh();
       }
     });
   };
@@ -165,12 +180,15 @@ export function DepartmentManager({ initialDepartments }: Props) {
         setErrorMsg(res.error || 'Failed to toggle status');
       } else {
         setSuccessMsg(`Department status updated to ${!dept.isActive ? 'Active' : 'Inactive'}.`);
-        window.location.reload();
+        setDepartments((prev) =>
+          prev.map((d) => (d.id === dept.id ? { ...d, isActive: !dept.isActive } : d))
+        );
+        router.refresh();
       }
     });
   };
 
-  const filtered = initialDepartments.filter(
+  const filtered = departments.filter(
     (d) =>
       d.name.toLowerCase().includes(search.toLowerCase()) ||
       d.code.toLowerCase().includes(search.toLowerCase()) ||

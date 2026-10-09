@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
-import { AnnouncementCategory, AnnouncementStatus } from '@prisma/client';
+import { AnnouncementCategory, AnnouncementStatus } from '@/types/enums';
 import {
   Plus,
   PencilSimple,

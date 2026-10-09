@@ -14,7 +14,7 @@ import {
   Wallet,
   Money,
 } from '@phosphor-icons/react';
-import { PaymentMethodCode, BillService } from '@prisma/client';
+import { PaymentMethodCode, BillService } from '@/types/enums';
 
 interface BillData {
   id: string;

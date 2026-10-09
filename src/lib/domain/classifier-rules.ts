@@ -1,4 +1,4 @@
-import { ComplaintCategory, Priority, DepartmentCode } from '@prisma/client';
+import { ComplaintCategory, Priority, DepartmentCode } from '@/types/enums';
 import { getDepartmentForCategory } from './categories';
 
 export interface ClassificationResult {

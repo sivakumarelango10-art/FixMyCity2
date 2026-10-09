@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
-import { Role } from '@prisma/client';
+import { Role } from '@/types/enums';
 import {
   Plus,
   PencilSimple,

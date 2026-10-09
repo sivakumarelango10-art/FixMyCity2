@@ -1,16 +1,14 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
-import { BillService } from '@prisma/client';
+import { BillService } from '@/types/enums';
 import {
   Plus,
   CheckCircle,
-  Receipt,
   Lightning,
   Drop,
   Buildings,
   Trash,
-  Clock,
   WarningCircle,
   Spinner,
 } from '@phosphor-icons/react';

@@ -1,4 +1,4 @@
-import { ComplaintCategory, DepartmentCode } from '@prisma/client';
+import { ComplaintCategory, DepartmentCode } from '@/types/enums';
 
 export interface CategoryMetadata {
   code: ComplaintCategory;

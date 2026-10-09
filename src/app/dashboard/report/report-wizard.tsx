@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ComplaintCategory } from '@prisma/client';
+import { ComplaintCategory } from '@/types/enums';
 import { CATEGORY_DEFINITIONS, CATEGORY_OPTIONS } from '@/lib/domain/categories';
 import { Coordinates, DEFAULT_BENGALURU_COORDINATES } from '@/lib/domain/geo';
 import { DynamicLocationPicker } from '@/components/maps/dynamic-location-picker';
